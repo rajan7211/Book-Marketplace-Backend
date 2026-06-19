@@ -1,38 +1,31 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-
-import databaseConfig from './config/database.config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { databaseConfig, jwtConfig, appConfig } from './config';
+import { DatabaseModule } from './database/database.module';
+import { UsersModule } from './modules/users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig],
+      load: [databaseConfig, jwtConfig, appConfig],
       envFilePath: '.env',
     }),
-
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-
-      useFactory: async (configService: ConfigService) => {
-        const uri = await Promise.resolve(
-          configService.get<string>('database.uri'),
-        );
-        console.log('Connecting to MongoDB...');
-        return {
-          uri,
-          retryWrites: true,
-          w: 'majority',
-        };
-      },
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60000,
+          limit: 10,
+        },
+      ],
     }),
+    DatabaseModule,
+    UsersModule,
+    AuthModule,
+    HealthModule,
   ],
-
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

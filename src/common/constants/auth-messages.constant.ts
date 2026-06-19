@@ -1,0 +1,15 @@
+export const AuthMessages = {
+  REGISTER_SUCCESS: 'User registered successfully.',
+  LOGIN_SUCCESS: 'Login successful.',
+  LOGOUT_SUCCESS: 'Logout successful.',
+  TOKEN_REFRESH_SUCCESS: 'Token refreshed successfully.',
+  INVALID_CREDENTIALS: 'Invalid email or password.',
+  EMAIL_EXISTS: 'Email already registered. Please login instead.',
+  USER_NOT_FOUND: 'User not found.',
+  INVALID_TOKEN: 'Invalid or expired token.',
+  TOKEN_EXPIRED: 'Token has expired.',
+  UNAUTHORIZED: 'You are not authorized to perform this action.',
+  FORBIDDEN: 'You do not have permission to access this resource.',
+  PASSWORD_TOO_SHORT: 'Password must be at least 6 characters long.',
+  PASSWORD_HASH_ERROR: 'Failed to hash password.',
+} as const;
