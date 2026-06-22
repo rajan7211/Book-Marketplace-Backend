@@ -12,10 +12,19 @@ export function resolvePagination(input: PaginationInput): {
   limit: number;
   skip: number;
 } {
-  const page = Math.max(1, Math.trunc(input.page ?? PAGINATION.DEFAULT_PAGE));
+  // Query params arrive as strings; coerce safely with sane fallbacks.
+  const rawPage = Number(input.page);
+  const rawLimit = Number(input.limit);
+  const page = Math.max(
+    1,
+    Math.trunc(Number.isFinite(rawPage) && rawPage > 0 ? rawPage : PAGINATION.DEFAULT_PAGE),
+  );
   const limit = Math.min(
     PAGINATION.MAX_LIMIT,
-    Math.max(1, Math.trunc(input.limit ?? PAGINATION.DEFAULT_LIMIT)),
+    Math.max(
+      1,
+      Math.trunc(Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : PAGINATION.DEFAULT_LIMIT),
+    ),
   );
   return { page, limit, skip: (page - 1) * limit };
 }

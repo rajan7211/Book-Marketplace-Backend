@@ -18,6 +18,9 @@ import { UsersModule } from './modules/users/users.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { SellersModule } from './modules/sellers/sellers.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { BooksModule } from './modules/books/books.module';
+import { ListingsModule } from './modules/listings/listings.module';
 import { JwtAuthGuard, RolesGuard } from './common/guards';
 
 /**
@@ -43,6 +46,9 @@ import { JwtAuthGuard, RolesGuard } from './common/guards';
     CustomersModule,
     SellersModule,
     AuthModule,
+    ListingsModule,
+    BooksModule,
+    AdminModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

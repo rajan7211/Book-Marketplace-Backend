@@ -1,5 +1,5 @@
 import { NestFactory, Reflector } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
@@ -33,17 +33,11 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
 
-  // Validation is owned by per-route Joi pipes (JoiValidationPipe).
-  // We keep a global pipe ONLY for light transformation, with whitelist
-  // disabled so it never conflicts with Joi-validated payloads.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: false,
-      forbidNonWhitelisted: false,
-      transform: true,
-      transformOptions: { enableImplicitConversion: true },
-    }),
-  );
+  // Validation is owned entirely by per-route Joi pipes (JoiValidationPipe),
+  // which also handle type coercion (convert:true). We deliberately do NOT
+  // register a global class-validator ValidationPipe, because transforming
+  // bodies into DTO instances injects undefined keys that defeat Joi's
+  // object-level rules (e.g. .min(1) on partial-update DTOs).
 
   app.useGlobalInterceptors(
     new LoggingInterceptor(),
@@ -71,6 +65,3 @@ async function bootstrap() {
 }
 
 void bootstrap();
-
-
-

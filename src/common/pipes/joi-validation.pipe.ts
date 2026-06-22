@@ -14,8 +14,17 @@ import { MESSAGES } from '../constants';
 export class JoiValidationPipe implements PipeTransform {
   constructor(private readonly schema: ObjectSchema) {}
 
-  transform(value: unknown, _metadata: ArgumentMetadata) {
-    const { error, value: validated } = this.schema.validate(value, {
+  transform(value: unknown, metadata: ArgumentMetadata) {
+    // A missing/empty JSON body arrives as undefined for body params.
+    // Coerce to {} so object-level rules (e.g. .min(1)) still apply.
+    const input =
+      value === undefined || value === null
+        ? metadata.type === 'body'
+          ? {}
+          : value
+        : value;
+
+    const { error, value: validated } = this.schema.validate(input, {
       abortEarly: false,
       stripUnknown: true,
       convert: true,

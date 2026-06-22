@@ -20,5 +20,3 @@ export class CustomerProfile {
 }
 
 export const CustomerProfileSchema = SchemaFactory.createForClass(CustomerProfile);
-
-
