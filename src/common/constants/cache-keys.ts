@@ -1,13 +1,10 @@
-/**
- * Centralized Redis key builders (Phase 13).
- * Versioned catalog keys enable broad invalidation without KEYS * scans.
- */
 export const CacheKeys = {
   catalogVersion: () => 'catalog:version',
   catalogList: (version: number, hash: string) => `catalog:list:v${version}:${hash}`,
   bookDetail: (id: string) => `book:detail:${id}`,
   bookListings: (id: string) => `book:listings:${id}`,
   categories: () => 'catalog:categories',
+  managedCategories: () => 'catalog:categories:managed',
   adminStats: () => 'admin:stats',
   sellerStatus: (id: string) => `seller:status:${id}`,
   sellerDashboard: (id: string) => `seller:dashboard:${id}`,
@@ -22,5 +19,3 @@ export const CacheTTL = {
   SELLER_STATUS: 300,
   SELLER_DASHBOARD: 45,
 } as const;
-
-

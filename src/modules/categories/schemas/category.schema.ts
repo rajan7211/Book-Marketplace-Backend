@@ -3,10 +3,6 @@ import { HydratedDocument } from 'mongoose';
 
 export type CategoryDocument = HydratedDocument<Category>;
 
-/**
- * Admin-managed categories (Phase 6, "Manage Categories").
- * Today book.category is a free string; categoryId is adopted incrementally.
- */
 @Schema({ timestamps: true, collection: 'categories' })
 export class Category {
   @Prop({ required: true, unique: true, trim: true })

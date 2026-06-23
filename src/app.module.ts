@@ -21,6 +21,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BooksModule } from './modules/books/books.module';
 import { ListingsModule } from './modules/listings/listings.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { CartModule } from './modules/cart/cart.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { JwtAuthGuard, RolesGuard } from './common/guards';
 
 /**
@@ -48,6 +51,9 @@ import { JwtAuthGuard, RolesGuard } from './common/guards';
     AuthModule,
     ListingsModule,
     BooksModule,
+    CategoriesModule,
+    CartModule,
+    WishlistModule,
     AdminModule,
   ],
   providers: [
