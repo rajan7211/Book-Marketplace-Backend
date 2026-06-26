@@ -7,6 +7,6 @@ export default registerAs('app', () => ({
   corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:5173')
     .split(',')
     .map((o) => o.trim())
-    .filter(Boolean),
+    .filter((o) => o.length > 0),
   bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '10', 10),
 }));

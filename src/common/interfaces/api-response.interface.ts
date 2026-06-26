@@ -5,7 +5,6 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
-/** Uniform success envelope produced by ResponseInterceptor. */
 export interface ApiResponse<T> {
   success: true;
   statusCode: number;
@@ -15,7 +14,6 @@ export interface ApiResponse<T> {
   timestamp: string;
 }
 
-/** Uniform error envelope produced by the exception filters. */
 export interface ApiErrorResponse {
   success: false;
   statusCode: number;
@@ -25,7 +23,6 @@ export interface ApiErrorResponse {
   timestamp: string;
 }
 
-/** Returned by services for paginated lists; the interceptor lifts `meta` into the envelope. */
 export interface PaginatedResult<T> {
   data: T[];
   meta: PaginationMeta;

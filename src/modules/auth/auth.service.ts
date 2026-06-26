@@ -1,114 +1,186 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService, JwtSignOptions } from '@nestjs/jwt';
-import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, Types } from 'mongoose';
+import { JwtService } from '@nestjs/jwt';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomUUID } from 'crypto';
-import { UsersService } from '../users/users.service';
-import { CustomersService } from '../customers/customers.service';
-import { SellersService } from '../sellers/sellers.service';
+import { createHash } from 'crypto';
+import { OtpService } from './otp.service';
+import { OtpPurpose } from './enums/otp-purpose.enum';
+import { UsersRepository } from '../users/users.repository';
+import { CustomersRepository } from '../customers/customers.repository';
+import { SellersRepository } from '../sellers/sellers.repository';
 import { Cart, CartDocument } from '../cart/schemas/cart.schema';
 import { UserDocument } from '../users/schemas/user.schema';
 import { Role, SellerStatus } from '../../common/enums';
 import { MESSAGES } from '../../common/constants';
 import { JwtPayload } from '../../common/interfaces';
-import { RegisterCustomerDto, RegisterSellerDto, LoginDto } from './dto';
+import { MailService } from '../../infra/mailer/mailer.service';
+import { buildWelcomeEmail } from '../../infra/mailer/templates';
+import {
+  SendOtpDto,
+  LoginDto,
+  ResetPasswordDto,
+  ChangePasswordDto,
+  RegisterSellerDto,
+} from './dto';
 
-interface TokenPair {
+interface TokenPair { accessToken: string; refreshToken: string; }
+
+interface PublicUser {
+  userId: string;
+  email: string;
+  role: Role;
+  customerId?: string;
+  sellerId?: string;
+  name: string;
+  sellerStatus?: string;
+}
+
+interface RegisterResult {
   accessToken: string;
   refreshToken: string;
+  user: PublicUser;
 }
 
 @Injectable()
 export class AuthService {
-  private readonly saltRounds: number;
+  private readonly logger = new Logger(AuthService.name);
+  private readonly SALT_ROUNDS: number;
 
   constructor(
-    private readonly users: UsersService,
-    private readonly customers: CustomersService,
-    private readonly sellers: SellersService,
+    private readonly otpService: OtpService,
+    private readonly users: UsersRepository,
+    private readonly customers: CustomersRepository,
+    private readonly sellers: SellersRepository,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    @InjectConnection() private readonly connection: Connection,
+    private readonly mail: MailService,
     @InjectModel(Cart.name) private readonly cartModel: Model<CartDocument>,
   ) {
-    this.saltRounds = this.config.get<number>('app.bcryptSaltRounds') ?? 10;
+    this.SALT_ROUNDS = this.config.get<number>('app.bcryptSaltRounds') ?? 10;
   }
 
-  // ───────────────────────── register ─────────────────────────
+  // ───────────────────── customer registration (Pattern B) ─────────────────────
 
-  async registerCustomer(dto: RegisterCustomerDto) {
+  async initiateRegistration(dto: SendOtpDto): Promise<void> {
+    if (dto.purpose !== OtpPurpose.REGISTRATION) {
+      throw new BadRequestException('This endpoint is only for REGISTRATION purpose.');
+    }
     if (await this.users.existsByEmail(dto.email)) {
       throw new ConflictException(MESSAGES.AUTH.EMAIL_TAKEN);
     }
-    const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-
-    const { user, customerId } = await this.withTransaction(async (session) => {
-      const created = await this.users.create(
-        { email: dto.email, passwordHash, role: Role.CUSTOMER },
-        session,
-      );
-      const profile = await this.customers.create(
-        { userId: created._id, firstName: dto.firstName, lastName: dto.lastName },
-        session,
-      );
-      // mirror frontend: every customer gets an empty cart
-      await this.cartModel.create([{ customerId: profile._id, items: [] }], { session });
-      return { user: created, customerId: profile._id };
-    });
-
-    const tokens = await this.issueTokens(user, { customerId: customerId.toString() });
-    return {
-      ...tokens,
-      user: this.publicUser(user, { customerId: customerId.toString(), name: `${dto.firstName} ${dto.lastName}` }),
-    };
+    const passwordHash = await bcrypt.hash(dto.password!, this.SALT_ROUNDS);
+    await this.otpService.sendOtp(
+      dto.email,
+      OtpPurpose.REGISTRATION,
+      { firstName: dto.firstName!, lastName: dto.lastName!, passwordHash },
+    );
   }
 
-  async registerSeller(dto: RegisterSellerDto) {
+  // ───────────────────── seller registration (Pattern B) ─────────────────────
+
+  async initiateSellerRegistration(dto: RegisterSellerDto): Promise<void> {
     if (await this.users.existsByEmail(dto.email)) {
       throw new ConflictException(MESSAGES.AUTH.EMAIL_TAKEN);
     }
-    const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
+    const passwordHash = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
+    await this.otpService.sendOtp(
+      dto.email,
+      OtpPurpose.REGISTRATION,
+      undefined,
+      {
+        businessName: dto.businessName,
+        contactPerson: dto.contactPerson,
+        mobile: dto.mobile,
+        passwordHash,
+      },
+    );
+  }
 
-    const { user, sellerId } = await this.withTransaction(async (session) => {
-      const created = await this.users.create(
-        { email: dto.email, passwordHash, role: Role.SELLER },
-        session,
-      );
-      const profile = await this.sellers.create(
-        {
-          userId: created._id,
-          businessName: dto.businessName,
-          contactPerson: dto.contactPerson,
-          email: dto.email,
-          mobile: dto.mobile,
-        },
-        session,
-      );
-      return { user: created, sellerId: profile._id };
+  // ───────────────────── verify + create user (customer OR seller) ─────────────────────
+
+  async verifyAndRegister(
+    email: string,
+    purpose: OtpPurpose,
+    plainOtp: string,
+  ): Promise<RegisterResult | null> {
+    const verified = await this.otpService.verifyOtp(email, purpose, plainOtp);
+    if (purpose !== OtpPurpose.REGISTRATION) return null;
+
+    // Decide customer vs seller by which data is present in the OTP doc.
+    const isSellerRegistration = Boolean(verified.businessName);
+
+    const user = await this.users.create({
+      email: verified.email,
+      passwordHash: verified.passwordHash!,
+      role: isSellerRegistration ? Role.SELLER : Role.CUSTOMER,
     });
 
-    const tokens = await this.issueTokens(user, { sellerId: sellerId.toString() });
+    let profileName: string;
+    let extraClaims: { customerId?: string; sellerId?: string } = {};
+
+    if (isSellerRegistration) {
+      const seller = await this.sellers.create({
+        userId: user._id,
+        businessName: verified.businessName!,
+        contactPerson: verified.contactPerson!,
+        email: verified.email,
+        mobile: verified.mobile!,
+      });
+      profileName = verified.businessName!;
+      extraClaims = { sellerId: seller._id.toString() };
+
+      // Notify admin that a new seller is pending (email wiring in Phase 13).
+      this.logger.log(`New seller pending approval: ${verified.email}`);
+    } else {
+      const customer = await this.customers.create({
+        userId: user._id,
+        firstName: verified.firstName!,
+        lastName: verified.lastName!,
+      });
+      await this.cartModel.create({ customerId: customer._id, items: [] });
+      profileName = `${verified.firstName} ${verified.lastName}`;
+      extraClaims = { customerId: customer._id.toString() };
+    }
+
+    await this.mail.sendEmail({
+      to: verified.email,
+      subject: 'Welcome to Book Marketplace!',
+      html: buildWelcomeEmail(
+        isSellerRegistration ? verified.businessName! : verified.firstName!,
+        isSellerRegistration ? 'SELLER' : 'CUSTOMER',
+      ),
+    });
+
+    const tokens = await this.issueTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+      extraClaims,
+    );
+
     return {
       ...tokens,
-      user: this.publicUser(user, {
-        sellerId: sellerId.toString(),
-        sellerStatus: SellerStatus.PENDING_APPROVAL,
-        name: dto.businessName,
+      user: this.toPublicUser(user, {
+        ...extraClaims,
+        name: profileName,
+        sellerStatus: isSellerRegistration ? SellerStatus.PENDING_APPROVAL : undefined,
       }),
     };
   }
 
-  // ───────────────────────── login ────────────────────────────
+  // ───────────────────── login / refresh / logout ─────────────────────
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto): Promise<RegisterResult> {
     const user = await this.users.findByEmailWithSecret(dto.email);
-    // Generic message — never reveal whether the email exists.
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException(MESSAGES.AUTH.INVALID_CREDENTIALS);
     }
@@ -116,45 +188,95 @@ export class AuthService {
       throw new UnauthorizedException(MESSAGES.AUTH.ACCOUNT_DISABLED);
     }
 
-    const extra = await this.resolveProfile(user);
-    const tokens = await this.issueTokens(user, extra.claims);
+    // ───── Seller approval gate ─────
+    // SELLERS can only log in if their SellerProfile is APPROVED.
+    // PENDING_APPROVAL → 403 with "pending" message.
+    // REJECTED         → 403 with "rejected" message.
+    // CUSTOMERS and ADMINS are not affected.
+    if (user.role === Role.SELLER) {
+      const seller = await this.sellers.findByUserId(user._id);
+      if (!seller) {
+        throw new ForbiddenException(
+          'Seller profile not found. Please contact support.',
+        );
+      }
+      if (seller.status === SellerStatus.PENDING_APPROVAL) {
+        throw new ForbiddenException(MESSAGES.SELLER.PENDING_LOGIN);
+      }
+      if (seller.status === SellerStatus.REJECTED) {
+        throw new ForbiddenException(MESSAGES.SELLER.REJECTED_LOGIN);
+      }
+      // status === APPROVED falls through, login proceeds
+    }
+
+    const profile = await this.resolveProfile(user);
+    const tokens = await this.issueTokens(
+      user._id.toString(), user.email, user.role, profile.claims,
+    );
     await this.users.markLoggedIn(user._id);
-    return { ...tokens, user: this.publicUser(user, extra.public) };
+    return { ...tokens, user: this.toPublicUser(user, profile.public) };
   }
 
-  // ─────────────────────── refresh / logout ───────────────────
-
-  async refresh(userId: string, presentedToken: string) {
+  async refresh(userId: string, presentedToken: string): Promise<TokenPair> {
     const user = await this.users.findByIdWithRefresh(userId);
     if (!user || !user.refreshTokenHash) {
       throw new UnauthorizedException(MESSAGES.AUTH.INVALID_TOKEN);
     }
-    const matches = await bcrypt.compare(this.sha256(presentedToken), user.refreshTokenHash);
+    const matches = await bcrypt.compare(
+      this.sha256(presentedToken),
+      user.refreshTokenHash,
+    );
     if (!matches) {
-      // token reuse / theft — revoke everything
       await this.users.setRefreshTokenHash(user._id, null);
       throw new UnauthorizedException(MESSAGES.AUTH.INVALID_TOKEN);
     }
-    const extra = await this.resolveProfile(user);
-    return this.issueTokens(user, extra.claims);
+    const profile = await this.resolveProfile(user);
+    return this.issueTokens(user._id.toString(), user.email, user.role, profile.claims);
   }
 
   async logout(userId: string): Promise<void> {
     await this.users.setRefreshTokenHash(userId, null);
   }
 
-  async checkEmail(email: string): Promise<{ exists: boolean }> {
-    return { exists: await this.users.existsByEmail(email) };
-  }
-
-  async getMe(userId: string) {
+  async getMe(userId: string): Promise<PublicUser> {
     const user = await this.users.findById(userId);
     if (!user) throw new UnauthorizedException(MESSAGES.AUTH.INVALID_TOKEN);
-    const extra = await this.resolveProfile(user);
-    return this.publicUser(user, extra.public);
+    const profile = await this.resolveProfile(user);
+    return this.toPublicUser(user, profile.public);
   }
 
-  // ───────────────────────── helpers ──────────────────────────
+  // ───────────────────── password recovery ─────────────────────
+
+  async forgotPassword(email: string): Promise<void> {
+    if (await this.users.existsByEmail(email)) {
+      await this.otpService.sendOtp(email, OtpPurpose.PASSWORD_RESET);
+    } else {
+      this.logger.warn(`forgot-password requested for non-existent email: ${email}`);
+    }
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    await this.otpService.verifyOtp(dto.email, OtpPurpose.PASSWORD_RESET, dto.otp);
+    const user = await this.users.findByEmailWithSecret(dto.email);
+    if (!user) throw new BadRequestException('No account found for this email.');
+    const newPasswordHash = await bcrypt.hash(dto.newPassword, this.SALT_ROUNDS);
+    await this.users.updatePasswordAndRevokeSessions(user._id, newPasswordHash);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+    const fullUser = await this.users.findByIdWithPassword(userId);
+    if (!fullUser) throw new UnauthorizedException(MESSAGES.AUTH.INVALID_TOKEN);
+    const currentMatches = await bcrypt.compare(
+      dto.currentPassword, fullUser.passwordHash,
+    );
+    if (!currentMatches) {
+      throw new UnauthorizedException('Current password is incorrect.');
+    }
+    const newPasswordHash = await bcrypt.hash(dto.newPassword, this.SALT_ROUNDS);
+    await this.users.updatePasswordAndRevokeSessions(userId, newPasswordHash);
+  }
+
+  // ───────────────────── helpers ─────────────────────
 
   private async resolveProfile(user: UserDocument): Promise<{
     claims: { customerId?: string; sellerId?: string };
@@ -164,54 +286,30 @@ export class AuthService {
       const c = await this.customers.findByUserId(user._id);
       return {
         claims: { customerId: c?._id.toString() },
-        public: { customerId: c?._id.toString(), name: c ? `${c.firstName} ${c.lastName}` : user.email },
+        public: {
+          customerId: c?._id.toString(),
+          name: c ? `${c.firstName} ${c.lastName}` : user.email,
+        },
       };
     }
     if (user.role === Role.SELLER) {
       const s = await this.sellers.findByUserId(user._id);
       return {
         claims: { sellerId: s?._id.toString() },
-        public: { sellerId: s?._id.toString(), sellerStatus: s?.status, name: s?.businessName ?? user.email },
+        public: {
+          sellerId: s?._id.toString(),
+          sellerStatus: s?.status,
+          name: s?.businessName ?? user.email,
+        },
       };
     }
     return { claims: {}, public: { name: 'Marketplace Admin' } };
   }
 
-  private async issueTokens(
-    user: UserDocument,
-    extra: { customerId?: string; sellerId?: string },
-  ): Promise<TokenPair> {
-    const payload: JwtPayload & { jti: string } = {
-      sub: user._id.toString(),
-      email: user.email,
-      role: user.role,
-      jti: randomUUID(), // unique per issuance so rotated tokens always differ
-      ...extra,
-    };
-    const accessToken = await this.jwt.signAsync(payload, {
-      secret: this.config.get<string>('jwt.accessSecret'),
-      expiresIn: this.config.get<string>('jwt.accessExpiresIn') ?? '15m',
-    } as JwtSignOptions);
-    const refreshToken = await this.jwt.signAsync(payload, {
-      secret: this.config.get<string>('jwt.refreshSecret'),
-      expiresIn: this.config.get<string>('jwt.refreshExpiresIn') ?? '7d',
-    } as JwtSignOptions);
-    // bcrypt only reads the first 72 bytes; JWTs are far longer and share a
-    // common prefix, so we SHA-256 the token first to get a fixed-length,
-    // fully-distinct input before hashing.
-    const refreshHash = await bcrypt.hash(this.sha256(refreshToken), this.saltRounds);
-    await this.users.setRefreshTokenHash(user._id, refreshHash);
-    return { accessToken, refreshToken };
-  }
-
-  private sha256(value: string): string {
-    return createHash('sha256').update(value).digest('hex');
-  }
-
-  private publicUser(
+  private toPublicUser(
     user: UserDocument,
     extra: { customerId?: string; sellerId?: string; sellerStatus?: string; name: string },
-  ) {
+  ): PublicUser {
     return {
       userId: user._id.toString(),
       email: user.email,
@@ -223,35 +321,27 @@ export class AuthService {
     };
   }
 
-  /**
-   * Runs `fn` in a transaction when the deployment supports it (replica set),
-   * otherwise falls back to a plain (non-atomic) run so dev on a standalone
-   * mongod still works.
-   */
-  private async withTransaction<T>(
-    fn: (session?: import('mongoose').ClientSession) => Promise<T>,
-  ): Promise<T> {
-    const session = await this.connection.startSession();
-    try {
-      let result!: T;
-      await session.withTransaction(async () => {
-        result = await fn(session);
-      });
-      return result;
-    } catch (err) {
-      const msg = (err as Error).message ?? '';
-      const noRs =
-        msg.includes('Transaction numbers') ||
-        msg.includes('replica set') ||
-        msg.includes('not supported');
-      if (noRs) {
-        return fn(undefined); // standalone fallback
-      }
-      throw err;
-    } finally {
-      await session.endSession();
-    }
+  private async issueTokens(
+    userId: string,
+    email: string,
+    role: Role,
+    extra: { customerId?: string; sellerId?: string },
+  ): Promise<TokenPair> {
+    const payload: JwtPayload = { sub: userId, email, role, ...extra };
+    const accessToken = await this.jwt.signAsync(payload, {
+      secret: this.config.get<string>('jwt.accessSecret'),
+      expiresIn: (this.config.get('jwt.accessExpiresIn') ?? '15m') as any,
+    });
+    const refreshToken = await this.jwt.signAsync(payload, {
+      secret: this.config.get<string>('jwt.refreshSecret'),
+      expiresIn: (this.config.get('jwt.refreshExpiresIn') ?? '7d') as any,
+    });
+    const refreshHash = await bcrypt.hash(this.sha256(refreshToken), this.SALT_ROUNDS);
+    await this.users.setRefreshTokenHash(userId, refreshHash);
+    return { accessToken, refreshToken };
+  }
+
+  private sha256(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
   }
 }
-
-

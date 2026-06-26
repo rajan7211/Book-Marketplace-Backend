@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
 import {
   appConfig,
   databaseConfig,
@@ -10,25 +8,16 @@ import {
   mailConfig,
   envValidationSchema,
 } from './config';
-import { DatabaseModule } from './database/database.module';
 import { LoggerModule } from './infra/logger/logger.module';
-import { RedisModule } from './infra/redis/redis.module';
-import { HealthModule } from './modules/health/health.module';
+import { DatabaseModule } from './infra/database/database.module';
+import { MailerModule } from './infra/mailer/mailer.module';
 import { UsersModule } from './modules/users/users.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { SellersModule } from './modules/sellers/sellers.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminModule } from './modules/admin/admin.module';
-import { BooksModule } from './modules/books/books.module';
-import { ListingsModule } from './modules/listings/listings.module';
-import { CategoriesModule } from './modules/categories/categories.module';
-import { CartModule } from './modules/cart/cart.module';
-import { WishlistModule } from './modules/wishlist/wishlist.module';
-import { JwtAuthGuard, RolesGuard } from './common/guards';
+import { HealthModule } from './modules/health/health.module';
 
-/**
- * Phases 1-4 wired. More feature modules are added in their phases.
- */
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -38,30 +27,15 @@ import { JwtAuthGuard, RolesGuard } from './common/guards';
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
     }),
-    ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60_000, limit: 60 }],
-    }),
     LoggerModule,
-    RedisModule,
     DatabaseModule,
-    HealthModule,
+    MailerModule,
     UsersModule,
     CustomersModule,
     SellersModule,
     AuthModule,
-    ListingsModule,
-    BooksModule,
-    CategoriesModule,
-    CartModule,
-    WishlistModule,
     AdminModule,
-  ],
-  providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-    // Global authentication — opt out per-route with @Public()
-    { provide: APP_GUARD, useClass: JwtAuthGuard },
-    // Global role enforcement — activated per-route with @Roles()
-    { provide: APP_GUARD, useClass: RolesGuard },
+    HealthModule,
   ],
 })
 export class AppModule {}

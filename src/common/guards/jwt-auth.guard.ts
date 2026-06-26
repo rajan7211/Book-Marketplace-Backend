@@ -1,12 +1,20 @@
-import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from '../decorators';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { MESSAGES } from '../constants';
 
 /**
- * Global authentication guard.
- * Bypassed for routes decorated with @Public().
+ * Global JWT authentication guard.
+ *
+ * Reads @Public() metadata. If set, skip JWT verification entirely.
+ * Otherwise, run passport's 'jwt' strategy (which validates the token).
+ *
+ * Wired globally via main.ts: app.useGlobalGuards(new JwtAuthGuard(...))
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -23,6 +31,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return super.canActivate(context);
   }
 
+  // Called by passport when verification fails or returns no user.
   handleRequest<TUser>(err: unknown, user: TUser): TUser {
     if (err || !user) {
       throw new UnauthorizedException(MESSAGES.COMMON.UNAUTHORIZED);

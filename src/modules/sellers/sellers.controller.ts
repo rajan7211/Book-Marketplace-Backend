@@ -1,12 +1,18 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SellersService } from './sellers.service';
-import { UpdateSellerDto } from './dto/update-seller.dto';
+import { UpdateSellerDto } from './dto';
 import { updateSellerSchema } from './validation/seller.validation';
-import { JoiValidationPipe } from '../../common/pipes';
+import { JoiValidationPipe, ParseObjectIdPipe } from '../../common/pipes';
 import { CurrentUser, Roles } from '../../common/decorators';
+import { ResponseMessage } from '../../common/interceptors';
 import { Role } from '../../common/enums';
-import { ResponseMessage } from '../../common/interceptors/response.interceptor';
 import { MESSAGES } from '../../common/constants';
 
 @ApiTags('Sellers')

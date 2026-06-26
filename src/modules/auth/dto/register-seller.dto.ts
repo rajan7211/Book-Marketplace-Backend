@@ -1,5 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+/**
+ * DTO for POST /auth/register-seller.
+ * Different shape from customer register — no firstName/lastName,
+ * but adds businessName/contactPerson/mobile.
+ */
 export class RegisterSellerDto {
   @ApiProperty({ example: 'BookHub Traders' })
   businessName: string;

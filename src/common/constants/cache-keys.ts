@@ -4,8 +4,6 @@ export const CacheKeys = {
   bookDetail: (id: string) => `book:detail:${id}`,
   bookListings: (id: string) => `book:listings:${id}`,
   categories: () => 'catalog:categories',
-  managedCategories: () => 'catalog:categories:managed',
-  adminStats: () => 'admin:stats',
   sellerStatus: (id: string) => `seller:status:${id}`,
   sellerDashboard: (id: string) => `seller:dashboard:${id}`,
   authRefresh: (userId: string) => `auth:refresh:${userId}`,
@@ -15,7 +13,6 @@ export const CacheTTL = {
   CATALOG_LIST: 120,
   BOOK_DETAIL: 600,
   CATEGORIES: 300,
-  ADMIN_STATS: 60,
   SELLER_STATUS: 300,
   SELLER_DASHBOARD: 45,
 } as const;

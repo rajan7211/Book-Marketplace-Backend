@@ -5,13 +5,18 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthenticatedUser, JwtPayload } from '../../../common/interfaces';
 import { MESSAGES } from '../../../common/constants';
 
-/** Validates the ACCESS token. Result is attached to req.user. */
+/**
+ * Validates the ACCESS token (Authorization: Bearer ...).
+ *
+ * The result of validate() is attached to req.user.
+ * So @CurrentUser() returns whatever this method returns.
+ */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(config: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
+      ignoreExpiration: false,                 // expired tokens are rejected
       secretOrKey: config.get<string>('jwt.accessSecret')!,
     });
   }

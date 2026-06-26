@@ -6,16 +6,20 @@ import { Request } from 'express';
 import { JwtPayload } from '../../../common/interfaces';
 import { MESSAGES } from '../../../common/constants';
 
+/**
+ * Validates the REFRESH token (sent in the request body, NOT in a header).
+ * The raw token is forwarded so AuthService can compare it against the
+ * stored bcrypt hash (rotation).
+ */
 export interface RefreshPayload extends JwtPayload {
   refreshToken: string;
 }
 
-/**
- * Validates the REFRESH token from the request body and forwards the raw
- * token so AuthService can compare it against the stored bcrypt hash (rotation).
- */
 @Injectable()
-export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
+export class JwtRefreshStrategy extends PassportStrategy(
+  Strategy,
+  'jwt-refresh',
+) {
   constructor(config: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),

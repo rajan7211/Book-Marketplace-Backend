@@ -1,23 +1,25 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
-import helmet from 'helmet';
-import compression from 'compression';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter, AllExceptionsFilter } from './common/filters/http-exception.filter';
-import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { ResponseEnvelopeInterceptor, LoggingInterceptor } from './common/interceptors';
+import { AllExceptionsFilter } from './common/filters';
+import { JwtAuthGuard } from './common/guards';
+import { UsersRepository } from './modules/users/users.repository';
+import { seedAdmin } from './database/seeds/admin.seed';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
-
-  // Route Nest logs through Winston
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
-  const logger = new Logger('Bootstrap');
 
+  const logger = new Logger('Bootstrap');
   const config = app.get(ConfigService);
+
+  // ───── Seed admin user (idempotent, opt-in via env) ─────
+  await seedAdmin(config, app.get(UsersRepository));
+
   const port = config.get<number>('app.port') ?? 4000;
   const nodeEnv = config.get<string>('app.nodeEnv') ?? 'development';
   const apiPrefix = config.get<string>('app.apiPrefix') ?? 'api';
@@ -30,22 +32,16 @@ async function bootstrap() {
     allowedHeaders: 'Content-Type, Authorization',
   });
 
-  app.use(helmet());
-  app.use(compression());
-
-  // Validation is owned entirely by per-route Joi pipes (JoiValidationPipe),
-  // which also handle type coercion (convert:true). We deliberately do NOT
-  // register a global class-validator ValidationPipe, because transforming
-  // bodies into DTO instances injects undefined keys that defeat Joi's
-  // object-level rules (e.g. .min(1) on partial-update DTOs).
+  app.setGlobalPrefix(apiPrefix);
 
   app.useGlobalInterceptors(
     new LoggingInterceptor(),
-    new ResponseInterceptor(app.get(Reflector)),
+    new ResponseEnvelopeInterceptor(app.get(Reflector)),
   );
-  app.useGlobalFilters(new AllExceptionsFilter(), new HttpExceptionFilter());
 
-  app.setGlobalPrefix(apiPrefix);
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  app.useGlobalGuards(new JwtAuthGuard(app.get(Reflector)));
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Book Marketplace API')
@@ -53,15 +49,17 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .addBearerAuth()
     .build();
+
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
     swaggerOptions: { persistAuthorization: true },
   });
 
   await app.listen(port);
-  logger.log(`Application: http://localhost:${port}/${apiPrefix}`);
-  logger.log(`Swagger:     http://localhost:${port}/${apiPrefix}/docs`);
-  logger.log(`Environment: ${nodeEnv}`);
+
+  logger.log(`Application:  http://localhost:${port}/${apiPrefix}`);
+  logger.log(`Swagger:      http://localhost:${port}/${apiPrefix}/docs`);
+  logger.log(`Environment:  ${nodeEnv}`);
 }
 
 void bootstrap();
