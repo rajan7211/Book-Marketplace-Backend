@@ -22,6 +22,8 @@ import { HealthModule } from './modules/health/health.module';
 import { ListingsModule } from './modules/listings/listings.module';
 import { CartModule } from './modules/cart/cart.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
+import { OrdersModule } from './modules/orders/orders.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -43,6 +45,7 @@ import { WishlistModule } from './modules/wishlist/wishlist.module';
     ListingsModule,
     CartModule,
     WishlistModule,
+    OrdersModule,
     BooksModule,
     HealthModule,
   ],
