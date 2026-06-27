@@ -54,4 +54,11 @@ export const MESSAGES = {
     PLACED: 'Order placed successfully',
     STATUS_UPDATED: 'Order status updated',
   },
+  LISTING: {
+    CREATED: 'Listing created successfully',
+    DUPLICATE: 'You already have a listing for this book. Update it instead.',
+    NOT_OWNER: "You cannot modify another seller's listing",
+    NEGATIVE_STOCK: 'Stock cannot be negative',
+    INVALID_PRICE: 'Price must be greater than zero',
+  },
 } as const;

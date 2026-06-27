@@ -16,8 +16,12 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { SellersModule } from './modules/sellers/sellers.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { BooksModule } from './modules/books/books.module';
 import { HealthModule } from './modules/health/health.module';
-
+import { ListingsModule } from './modules/listings/listings.module';
+import { CartModule } from './modules/cart/cart.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -35,6 +39,11 @@ import { HealthModule } from './modules/health/health.module';
     SellersModule,
     AuthModule,
     AdminModule,
+    CategoriesModule,
+    ListingsModule,
+    CartModule,
+    WishlistModule,
+    BooksModule,
     HealthModule,
   ],
 })
