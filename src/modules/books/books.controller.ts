@@ -2,22 +2,33 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Types } from 'mongoose';
 import { BooksService } from './books.service';
 import { CreateBookDto, BookQueryDto } from './dto';
-import {
-  createBookSchema,
-  bookQuerySchema,
-} from './validation/book.validation';
+import { createBookSchema, bookQuerySchema } from './validation/book.validation';
 import { JoiValidationPipe, ParseObjectIdPipe } from '../../common/pipes';
 import { Public, Roles, CurrentUser } from '../../common/decorators';
 import { ResponseMessage } from '../../common/interceptors';
 import { Role } from '../../common/enums';
 import { MESSAGES } from '../../common/constants';
+import { multerConfig } from '../uploads/multer.config';
 
 /**
  * Books controller — public + seller-facing endpoints.
@@ -64,23 +75,50 @@ export class BooksController {
     return this.books.findOnePublic(id);
   }
 
+  /**
+   * Submit a new book with a cover image
+   */
   @Roles(Role.SELLER)
   @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('image', multerConfig))
   @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        image: { type: 'string', format: 'binary' },
+        isbn: { type: 'string', example: '9781847941831' },
+        title: { type: 'string', example: 'Atomic Habits' },
+        author: { type: 'string', example: 'James Clear' },
+        publisher: { type: 'string', example: 'Random House' },
+        description: { type: 'string' },
+        category: { type: 'string' },
+        tags: { type: 'string' },
+      },
+      required: ['image', 'isbn', 'title', 'author', 'publisher', 'description', 'category'],
+    },
+  })
   @ApiOperation({
-    summary:
-      'Submit a new book (Scenario B) — starts PENDING_APPROVAL until admin approves.',
+    summary: 'Submit a new book with cover image  (starts PENDING_APPROVAL)',
   })
   @ResponseMessage(MESSAGES.BOOK.CREATED)
-  create(
+  async create(
+   @UploadedFile() file: Express.Multer.File | undefined,
     @Body(new JoiValidationPipe(createBookSchema)) dto: CreateBookDto,
     @CurrentUser('sellerId') sellerId: string | undefined,
   ) {
-    // sellerId is on req.user only if the JWT was issued for an APPROVED seller.
-    // For PENDING sellers the token never carries sellerId — they fall through login gate.
+    // FileInterceptor enforces type and size; we just check presence.
+    if (!file) {
+      throw new BadRequestException('Cover image is required');
+    }
+
+    // file.path is the Cloudinary URL set by CloudinaryStorage.
     return this.books.create(
       dto,
-      sellerId ? new (require('mongoose').Types.ObjectId)(sellerId) : null,
+      file.path,
+      sellerId ? new Types.ObjectId(sellerId) : null,
     );
   }
 }

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Book, BookSchema } from './schemas/book.schema';
 import { Listing, ListingSchema } from '../listings/schemas/listing.schema';
+import { UploadsModule } from '../uploads/uploads.module';
 import { BooksRepository } from './books.repository';
 import { BooksService } from './books.service';
 import { BooksController } from './books.controller';
@@ -11,9 +12,9 @@ import { BooksAdminController } from './books-admin.controller';
   imports: [
     MongooseModule.forFeature([
       { name: Book.name, schema: BookSchema },
-      // Listing model is registered so BooksRepository can join listings for price sort.
       { name: Listing.name, schema: ListingSchema },
     ]),
+    UploadsModule,
   ],
   controllers: [BooksController, BooksAdminController],
   providers: [BooksRepository, BooksService],

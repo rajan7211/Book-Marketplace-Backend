@@ -31,7 +31,7 @@ export class AuthController {
     private readonly otpService: OtpService,
   ) {}
 
-  // ───── Registration (customer + seller) ─────
+  // Registration (customer + seller)
 
   @Public()
   @Post('register')
@@ -85,7 +85,7 @@ export class AuthController {
     return null;
   }
 
-  // ───── Login / Refresh / Logout ─────
+  //Login / Refresh / Logout
 
   @Public()
   @Post('login')
@@ -120,7 +120,7 @@ export class AuthController {
     return null;
   }
 
-  // ───── Me ─────
+  //  Me
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -130,7 +130,7 @@ export class AuthController {
     return this.auth.getMe(user.userId);
   }
 
-  // ───── Password recovery ─────
+  // Password recovery
 
   @Public()
   @Post('forgot-password')

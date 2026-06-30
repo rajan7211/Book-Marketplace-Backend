@@ -7,6 +7,7 @@ import {
   redisConfig,
   mailConfig,
   envValidationSchema,
+  cloudinaryConfig,
 } from './config';
 import { LoggerModule } from './infra/logger/logger.module';
 import { DatabaseModule } from './infra/database/database.module';
@@ -23,13 +24,15 @@ import { ListingsModule } from './modules/listings/listings.module';
 import { CartModule } from './modules/cart/cart.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: [appConfig, databaseConfig, jwtConfig, redisConfig, mailConfig],
+      load: [appConfig, databaseConfig, jwtConfig, redisConfig, mailConfig,
+        cloudinaryConfig],
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
     }),
@@ -43,6 +46,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     AdminModule,
     CategoriesModule,
     ListingsModule,
+    UploadsModule,
     CartModule,
     WishlistModule,
     OrdersModule,

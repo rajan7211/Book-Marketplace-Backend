@@ -68,7 +68,7 @@ export class AuthService {
     this.SALT_ROUNDS = this.config.get<number>('app.bcryptSaltRounds') ?? 10;
   }
 
-  // ───────────────────── customer registration (Pattern B) ─────────────────────
+  //  customer registration
 
   async initiateRegistration(dto: SendOtpDto): Promise<void> {
     if (dto.purpose !== OtpPurpose.REGISTRATION) {
@@ -85,8 +85,7 @@ export class AuthService {
     );
   }
 
-  // ───────────────────── seller registration (Pattern B) ─────────────────────
-
+  //seller registration
   async initiateSellerRegistration(dto: RegisterSellerDto): Promise<void> {
     if (await this.users.existsByEmail(dto.email)) {
       throw new ConflictException(MESSAGES.AUTH.EMAIL_TAKEN);
@@ -105,7 +104,7 @@ export class AuthService {
     );
   }
 
-  // ───────────────────── verify + create user (customer OR seller) ─────────────────────
+  //  verify + create user (customer OR seller)
 
   async verifyAndRegister(
     email: string,
@@ -138,7 +137,7 @@ export class AuthService {
       profileName = verified.businessName!;
       extraClaims = { sellerId: seller._id.toString() };
 
-      // Notify admin that a new seller is pending (email wiring in Phase 13).
+      // Notify admin that a new seller is pending
       this.logger.log(`New seller pending approval: ${verified.email}`);
     } else {
       const customer = await this.customers.create({
@@ -177,7 +176,7 @@ export class AuthService {
     };
   }
 
-  // ───────────────────── login / refresh / logout ─────────────────────
+  //  login / refresh / logout
 
   async login(dto: LoginDto): Promise<RegisterResult> {
     const user = await this.users.findByEmailWithSecret(dto.email);
@@ -188,11 +187,9 @@ export class AuthService {
       throw new UnauthorizedException(MESSAGES.AUTH.ACCOUNT_DISABLED);
     }
 
-    // ───── Seller approval gate ─────
-    // SELLERS can only log in if their SellerProfile is APPROVED.
-    // PENDING_APPROVAL → 403 with "pending" message.
-    // REJECTED         → 403 with "rejected" message.
-    // CUSTOMERS and ADMINS are not affected.
+    // ───── Seller approval ─────
+    // SELLERS can only log in if their SellerProfile is APPROVED
+
     if (user.role === Role.SELLER) {
       const seller = await this.sellers.findByUserId(user._id);
       if (!seller) {
@@ -245,7 +242,7 @@ export class AuthService {
     return this.toPublicUser(user, profile.public);
   }
 
-  // ───────────────────── password recovery ─────────────────────
+  //  password recovery
 
   async forgotPassword(email: string): Promise<void> {
     if (await this.users.existsByEmail(email)) {
@@ -276,7 +273,7 @@ export class AuthService {
     await this.users.updatePasswordAndRevokeSessions(userId, newPasswordHash);
   }
 
-  // ───────────────────── helpers ─────────────────────
+  // helpers
 
   private async resolveProfile(user: UserDocument): Promise<{
     claims: { customerId?: string; sellerId?: string };

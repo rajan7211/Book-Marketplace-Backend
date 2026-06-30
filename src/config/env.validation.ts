@@ -1,9 +1,5 @@
 import * as Joi from 'joi';
 
-/**
- * Joi schema for the whole process.env.
- * NestJS runs this at boot and refuses to start if anything is wrong.
- */
 export const envValidationSchema = Joi.object({
   // ───── General ─────
   NODE_ENV: Joi.string()
@@ -38,6 +34,11 @@ export const envValidationSchema = Joi.object({
   // ───── Admin seed (OPTIONAL — set both to enable) ─────
   ADMIN_SEED_EMAIL: Joi.string().email().lowercase().trim().optional(),
   ADMIN_SEED_PASSWORD: Joi.string().min(8).optional(),
+
+  // ───── Cloudinary (image upload) ─────
+  CLOUDINARY_CLOUD_NAME: Joi.string().allow('').optional(),
+  CLOUDINARY_API_KEY: Joi.string().allow('').optional(),
+  CLOUDINARY_API_SECRET: Joi.string().allow('').optional(),
 
   // ───── bcrypt ─────
   BCRYPT_SALT_ROUNDS: Joi.number().default(10),
