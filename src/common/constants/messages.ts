@@ -61,4 +61,8 @@ export const MESSAGES = {
     NEGATIVE_STOCK: 'Stock cannot be negative',
     INVALID_PRICE: 'Price must be greater than zero',
   },
+  REVIEW: {
+    CREATED: 'Review submitted',
+    ALREADY_REVIEWED: 'You have already reviewed this book',
+  },
 } as const;

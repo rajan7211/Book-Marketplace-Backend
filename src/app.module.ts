@@ -25,6 +25,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     CartModule,
     WishlistModule,
     OrdersModule,
+    ReviewsModule,
     BooksModule,
     HealthModule,
   ],

@@ -17,7 +17,7 @@ export class BooksService {
     private readonly repo: BooksRepository,
     private readonly cloudinaryService: CloudinaryService,
   ) {}
-  
+
 /**
  * Create a new book.
  *
