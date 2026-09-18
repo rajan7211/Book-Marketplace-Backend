@@ -65,4 +65,8 @@ export const MESSAGES = {
     CREATED: 'Review submitted',
     ALREADY_REVIEWED: 'You have already reviewed this book',
   },
+
+  AI: {
+    REPLY: 'Reply generated',
+  },
 } as const;

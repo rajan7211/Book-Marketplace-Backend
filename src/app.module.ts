@@ -8,6 +8,7 @@ import {
   mailConfig,
   envValidationSchema,
   cloudinaryConfig,
+  openaiConfig,
 } from './config';
 import { LoggerModule } from './infra/logger/logger.module';
 import { DatabaseModule } from './infra/database/database.module';
@@ -26,6 +27,7 @@ import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { AiModule } from './modules/ai';
 
 @Module({
   imports: [
@@ -33,7 +35,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
       isGlobal: true,
       cache: true,
       load: [appConfig, databaseConfig, jwtConfig, redisConfig, mailConfig,
-        cloudinaryConfig],
+        cloudinaryConfig, openaiConfig],
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
     }),
@@ -54,6 +56,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     ReviewsModule,
     BooksModule,
     HealthModule,
+    AiModule,
   ],
 })
 export class AppModule {}

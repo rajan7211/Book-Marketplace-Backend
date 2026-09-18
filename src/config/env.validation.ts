@@ -40,6 +40,15 @@ export const envValidationSchema = Joi.object({
   CLOUDINARY_API_KEY: Joi.string().allow('').optional(),
   CLOUDINARY_API_SECRET: Joi.string().allow('').optional(),
 
+  // ───── OpenAI (AI Chatbot) — OPTIONAL at boot ─────
+  // The app starts without these; the assistant returns a friendly error at
+  // request time if OPENAI_API_KEY is missing.
+  OPENAI_API_KEY: Joi.string().allow('').optional(),
+  OPENAI_MODEL: Joi.string().allow('').optional(),
+  OPENAI_BASE_URL: Joi.string().uri().allow('').optional(),
+  OPENAI_TEMPERATURE: Joi.number().min(0).max(2).optional(),
+  OPENAI_MAX_TOKENS: Joi.number().integer().min(1).max(4096).optional(),
+
   // ───── bcrypt ─────
   BCRYPT_SALT_ROUNDS: Joi.number().default(10),
 });
